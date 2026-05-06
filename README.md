@@ -1,63 +1,77 @@
 # OptiMap
 
-> Open-source geospatial platform for small telecom operators.
+> Open-source desktop application for small telecom operators.
 
 OptiMap helps regional ISPs, WISPs, and fixed-wireless carriers manage sites, equipment, and spectrum licences on a single map-first interface — replacing the spreadsheet + Google Earth + email stack that small operators rely on today.
 
+OptiMap is a **desktop app**, not a cloud service. Your data lives on your machine. No accounts, no subscriptions, no server fees. Free and open source under GPLv3.
+
 **Status:** pre-alpha, in active development. Not yet usable.
 
-## Why
+## Why a desktop app?
 
-Big telcos spend $100k+/year on ArcGIS, MapInfo, and dedicated GIS staff. Small operators can't justify that — and free tools like QGIS or Google Earth aren't built for telecom workflows. OptiMap fills the gap with a focused, free, self-hostable platform that does a few things well:
+- **Your data, your machine.** No SaaS lock-in, no hosting bill, no privacy worries.
+- **Works offline.** Plan a site visit from the back of a tower paddock with no signal.
+- **Free forever.** Download the installer and run it.
+- **Open source.** Audit the code, fix bugs, fork it.
+
+## Features (planned for v1)
 
 - See every site on a map, by status.
 - Track equipment, antennas, and serial numbers per site.
 - Track spectrum licences and never miss a renewal.
-- Search and filter by location, region, or attribute.
+- Search by location, region, or attribute.
+- Backup and restore your data with a single click.
 
 For the longer-term vision (microwave link planning, lease management, project workflow, cost tracking), see [`docs/MVP-SCOPE.md`](docs/MVP-SCOPE.md).
 
-## Tech stack
+## Install (when v1 ships)
 
-- Next.js 15 (App Router) + TypeScript (strict)
-- tRPC for type-safe APIs
-- Drizzle ORM
-- PostgreSQL 16 + PostGIS 3
-- MapLibre GL JS for mapping
-- Tailwind CSS
+Download the installer for your OS from the [Releases page](https://github.com/<your-username>/optimap/releases/latest):
 
-## Getting started
+- **Windows:** `OptiMap-x64.msi`
+- **macOS:** `OptiMap-universal.dmg`
+- **Linux:** `OptiMap-x64.AppImage`
+
+Run the installer and you're done.
+
+## Development
 
 Requirements:
 - Node.js 20+
 - pnpm 9+
-- Docker (for local Postgres + Redis)
+- Rust toolchain (`rustup`)
+- Platform build prerequisites (see [Tauri prerequisites](https://tauri.app/start/prerequisites/))
 
 ```bash
 git clone https://github.com/<your-username>/optimap.git
 cd optimap
 pnpm install
-docker compose up -d
-pnpm db:migrate
-pnpm db:seed
-pnpm dev
+pnpm tauri dev
 ```
 
-Visit http://localhost:3000.
+The app launches as a desktop window.
+
+## Tech stack
+
+- [Tauri 2](https://tauri.app/) (Rust shell)
+- React 18 + TypeScript (strict)
+- Vite + Tailwind CSS
+- SQLite via `tauri-plugin-sql`
+- Drizzle ORM
+- MapLibre GL JS
 
 ## Contributing
 
-OptiMap is being developed solo with AI assistance as a research project. Contributions are welcome but the bar is high on code quality and test coverage. Read `CLAUDE.md` to understand how the codebase is structured and the conventions in use.
+OptiMap is being developed solo with AI assistance as a research project. Contributions are welcome but the bar is high on code quality and test coverage. Read `CLAUDE.md` to understand the codebase structure and conventions before submitting a PR.
 
 ## Licence
 
-AGPLv3. See [`LICENSE`](LICENSE).
-
-If you self-host this for internal use at your company, you're fine. If you offer it as a hosted service to others, the AGPL requires you to share your modifications under the same licence.
+GPLv3. See [`LICENSE`](LICENSE).
 
 ## Acknowledgements
 
+- [Tauri](https://tauri.app/) — the desktop app framework.
 - [MapLibre GL JS](https://maplibre.org/) — the open-source map renderer.
 - [OpenStreetMap](https://www.openstreetmap.org/) contributors for the basemap.
-- ITU-R recommendations P.530, P.838, P.676 for the propagation models we'll use in Phase 2.
-- The [`itur`](https://github.com/inigodelportillo/ITU-Rpy) Python library, which we plan to integrate when the link-budget module lands.
+- The [`itur`](https://github.com/inigodelportillo/ITU-Rpy) library, planned for the future microwave link-budget module (Phase 2).
