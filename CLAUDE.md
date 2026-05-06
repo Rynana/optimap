@@ -81,14 +81,25 @@ Use **pnpm** as the package manager. Do not use npm or yarn.
 
 ## Local dev
 
-```bash
+### Shell environment
+
+The human runs this on **Windows with native PowerShell** (not WSL, not Git Bash, not bash). When suggesting or executing shell commands:
+
+- Use PowerShell syntax: `Get-Command <name>` instead of `which`, `$env:VAR` instead of `$VAR`.
+- Don't use bash chaining (`&&`, `||`) — use `;` to separate commands, or run them individually and check each result.
+- Don't use bash redirects like `2>/dev/null` — use `2>$null` if you need to suppress stderr.
+- Don't use `&&` to gate one command on another — run them separately and check `$LASTEXITCODE` if you need to.
+- Most cross-platform tooling (`pnpm`, `git`, `cargo`, `node`, `rustc`) works identically across shells; only the *plumbing* (chaining, redirects, command-finding) differs.
+- When verifying tool availability, simplest is best: just run `pnpm --version`, `node --version`, `rustc --version` individually.
+
+```powershell
 # from repo root
 pnpm install
 pnpm tauri dev                  # launches the desktop app in dev mode
 ```
 
 Other commands:
-```bash
+```powershell
 pnpm db:generate                # generate a migration from the Drizzle schema
 pnpm db:check                   # verify migrations are consistent
 pnpm test                       # vitest unit tests
