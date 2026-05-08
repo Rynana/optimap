@@ -14,18 +14,25 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.{ts,js,json}\"",
     "test": "vitest run",
     "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:check": "drizzle-kit check",
     "prepare": "husky"
   },
   "dependencies": {
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2"
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-sql": "^2",
+    "drizzle-orm": "^0.36.4"
   },
   "devDependencies": {
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
+    "@types/better-sqlite3": "^7.6.11",
     "@vitejs/plugin-react": "^4.6.0",
+    "better-sqlite3": "^11.5.0",
+    "drizzle-kit": "^0.28.1",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
     "@tauri-apps/cli": "^2",
@@ -49,11 +56,13 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
-      "@tailwindcss/oxide"
+      "@tailwindcss/oxide",
+      "better-sqlite3"
     ],
     "approvedBuilds": [
       "esbuild",
-      "@tailwindcss/oxide"
+      "@tailwindcss/oxide",
+      "better-sqlite3"
     ]
   },
   "lint-staged": {

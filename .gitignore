@@ -31,3 +31,6 @@ coverage/
 
 # Claude Code local settings
 .claude/
+
+# Stray screenshots (manual or AI-driven captures should not be committed)
+screenshot*.png
