@@ -12,7 +12,7 @@ The first 20 tickets to take OptiMap from empty repo to MVP-shaped. Each is size
 
 ### T-001 — Repo bootstrap (Tauri 2 + React + Vite + Tailwind)
 
-**Status:** In review
+**Status:** Done (a6e4f5b)
 **Depends on:** none
 
 Initialise the project. Use `pnpm create tauri-app` with the React + TypeScript + Vite template. Add Tailwind CSS, ESLint, Prettier, Husky + lint-staged. Set up the directory structure described in `CLAUDE.md`. Add `.gitattributes` enforcing LF line endings. Add the GPLv3 LICENSE file. Add a base GitHub Actions workflow that runs `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm tauri build` on every PR (build for the runner's OS only).
