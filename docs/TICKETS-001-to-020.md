@@ -38,7 +38,7 @@ Configure `tauri.conf.json`:
 
 ### T-002 — Database layer: tauri-plugin-sql + Drizzle + first migration `[model: opus]`
 
-**Status:** Open
+**Status:** In progress
 **Depends on:** T-001
 
 Add `@tauri-apps/plugin-sql` (frontend) and the Rust `tauri-plugin-sql` (backend). Configure to use SQLite, with the database file at the OS-standard app-data directory: `<appDataDir>/optimap.db`.
