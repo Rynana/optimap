@@ -11,18 +11,21 @@ The first 20 tickets to take OptiMap from empty repo to MVP-shaped. Each is size
 ## Foundation (T-001 to T-003)
 
 ### T-001 — Repo bootstrap (Tauri 2 + React + Vite + Tailwind)
-**Status:** Open
+
+**Status:** In review
 **Depends on:** none
 
 Initialise the project. Use `pnpm create tauri-app` with the React + TypeScript + Vite template. Add Tailwind CSS, ESLint, Prettier, Husky + lint-staged. Set up the directory structure described in `CLAUDE.md`. Add `.gitattributes` enforcing LF line endings. Add the GPLv3 LICENSE file. Add a base GitHub Actions workflow that runs `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm tauri build` on every PR (build for the runner's OS only).
 
 Configure `tauri.conf.json`:
+
 - `productName: "OptiMap"`
 - `identifier: "com.optimap.app"`
 - Window: 1280×800 default, min 1024×640.
 - Title: "OptiMap".
 
 **Acceptance criteria:**
+
 - `pnpm install` works from a fresh clone.
 - `pnpm tauri dev` launches a window showing a placeholder "OptiMap — coming soon" with Tailwind styling.
 - `pnpm tauri build` produces an installer artefact in `src-tauri/target/release/bundle/`.
@@ -34,6 +37,7 @@ Configure `tauri.conf.json`:
 ---
 
 ### T-002 — Database layer: tauri-plugin-sql + Drizzle + first migration `[model: opus]`
+
 **Status:** Open
 **Depends on:** T-001
 
@@ -46,6 +50,7 @@ Create the first migration: a `meta` table with one row tracking the schema vers
 Add `pnpm db:generate` (drizzle-kit generates SQL migrations from the TS schema) and a runtime migration runner that applies pending migrations on app startup.
 
 **Acceptance criteria:**
+
 - App startup creates `optimap.db` in the correct app-data dir if it doesn't exist.
 - Migration runner applies all pending migrations and is idempotent on re-run.
 - A test asserts that after first launch, `meta.schema_version` exists and is correct.
@@ -55,10 +60,12 @@ Add `pnpm db:generate` (drizzle-kit generates SQL migrations from the TS schema)
 ---
 
 ### T-003 — App shell: routing, layout, first-launch experience
+
 **Status:** Open
 **Depends on:** T-001
 
 Set up React Router (or TanStack Router — pick and document) with these routes:
+
 - `/` — home / dashboard
 - `/sites` — sites list (placeholder until T-006)
 - `/map` — map view (placeholder until T-009)
@@ -69,6 +76,7 @@ Set up React Router (or TanStack Router — pick and document) with these routes
 Add a left-side navigation rail with icons (lucide-react) and a top bar with the app title and a search input (search wired in T-010).
 
 **First-launch experience:** if the database is empty, redirect to `/welcome`. Welcome screen offers three buttons:
+
 1. **Start with a sample dataset** — loads 10 demo sites in NSW for the user to explore.
 2. **Import from CSV** — opens the import dialog (full functionality in a later ticket; stub for now with a "coming soon" message).
 3. **Start empty** — drops user at `/sites` empty state.
@@ -76,6 +84,7 @@ Add a left-side navigation rail with icons (lucide-react) and a top bar with the
 Add a "first-launch completed" flag in the `meta` table so the welcome screen only appears once unless the user resets it.
 
 **Acceptance criteria:**
+
 - Empty database → first launch shows `/welcome`.
 - Clicking "Start with sample" loads sample sites and lands on `/sites`.
 - Subsequent launches go straight to `/`.
@@ -88,10 +97,12 @@ Add a "first-launch completed" flag in the `meta` table so the welcome screen on
 ## Sites (T-004 to T-008)
 
 ### T-004 — Sites schema + migration
+
 **Status:** Open
 **Depends on:** T-002
 
 Add the `sites` table to `src/db/schema.ts`. Columns:
+
 - `id` (text, pk, uuid)
 - `name` (text, not null)
 - `type` (text, not null — values: `tower`, `rooftop`, `hut`, `mpop`, `exchange`, `customer_premise`, `other`)
@@ -104,6 +115,7 @@ Add the `sites` table to `src/db/schema.ts`. Columns:
 - `created_at`, `updated_at`, `deleted_at` (text — ISO 8601 timestamps)
 
 Add indexes on:
+
 - `(deleted_at)` for the default "active rows" filter.
 - `(latitude, longitude)` to support bounding-box pre-filter for spatial queries.
 
@@ -112,6 +124,7 @@ Add Zod schemas for create and update operations.
 Add a `lib/geo.ts` module with: `haversineKm(a, b)`, `bearingDeg(a, b)`, `boundingBox(centre, radiusKm)`. All Haversine math, well-tested.
 
 **Acceptance criteria:**
+
 - Migration applies cleanly forward; rollback removes the table cleanly.
 - Inserting a site with bad enum values fails at the Zod boundary (DB has no enum constraint — Zod is the source of truth).
 - `lib/geo.ts` has at least 8 test fixtures covering equator, poles, antimeridian crossing, hemispheres.
@@ -120,10 +133,12 @@ Add a `lib/geo.ts` module with: `haversineKm(a, b)`, `bearingDeg(a, b)`, `boundi
 ---
 
 ### T-005 — Sites query module
+
 **Status:** Open
 **Depends on:** T-004
 
 Create `src/features/sites/queries.ts` with typed functions:
+
 - `listSites(opts: { search?, status?, type?, bbox?, limit?, offset?, includeDeleted? })`
 - `getSiteById(id)`
 - `createSite(input)`
@@ -133,6 +148,7 @@ Create `src/features/sites/queries.ts` with typed functions:
 - `sitesWithinRadiusKm(centre, radiusKm)`
 
 Each function:
+
 - Validates input with Zod.
 - Wraps Drizzle queries.
 - Writes an audit log entry on every mutation (use the `audit_log` table from T-002; helper function `writeAudit(...)`).
@@ -141,6 +157,7 @@ Each function:
 `sitesWithinRadiusKm` uses the bounding-box pre-filter from `lib/geo.ts` and then filters exactly with Haversine in JS.
 
 **Acceptance criteria:**
+
 - 100% of mutations go through the audit log.
 - Tests cover: create + read, update + read, soft-delete + restore, list with each filter, radius search returning only the right sites.
 - Cross-rows-not-deleted-by-default tested.
@@ -149,6 +166,7 @@ Each function:
 ---
 
 ### T-006 — Sites list page
+
 **Status:** Open
 **Depends on:** T-005
 
@@ -157,6 +175,7 @@ Build `/sites`. Table view with columns: name, type, status, address, last updat
 Use TanStack Query for data fetching. Empty state when no sites exists shows the three first-launch options inline.
 
 **Acceptance criteria:**
+
 - 1,000 sites render in under 1 second.
 - Search debounced 300ms.
 - Filters reflected in URL query string.
@@ -166,6 +185,7 @@ Use TanStack Query for data fetching. Empty state when no sites exists shows the
 ---
 
 ### T-007 — Site create / edit form
+
 **Status:** Open
 **Depends on:** T-005
 
@@ -176,6 +196,7 @@ Lat/lng inputs accept decimal degrees and DMS (e.g. `33°43′01″S`); auto-con
 Use React Hook Form + Zod resolver.
 
 **Acceptance criteria:**
+
 - Validation errors inline, prevent submit.
 - DMS-to-decimal conversion correct for all four hemispheres (test fixtures).
 - After save: redirect to `/sites/:id` with a success toast.
@@ -184,6 +205,7 @@ Use React Hook Form + Zod resolver.
 ---
 
 ### T-008 — Site detail page
+
 **Status:** Open
 **Depends on:** T-005
 
@@ -192,6 +214,7 @@ Build `/sites/:id`. Shows all site fields, a small embedded map centred on the s
 "Actions" menu: Edit, Soft delete, Export single-site PDF (stub — file a Phase 2 ticket).
 
 **Acceptance criteria:**
+
 - Renders all site fields.
 - Soft delete shows a confirm dialog; on confirm, redirects to `/sites` with a "Site deleted — Undo" toast (Undo calls `restoreSite`).
 - 404 page shown for unknown id.
@@ -201,6 +224,7 @@ Build `/sites/:id`. Shows all site fields, a small embedded map centred on the s
 ## Mapping (T-009 to T-011)
 
 ### T-009 — MapLibre GL setup `[model: opus]`
+
 **Status:** Open
 **Depends on:** T-001
 
@@ -211,6 +235,7 @@ Install `maplibre-gl`. Create a `<Map>` component wrapping the GL renderer. Use 
 **Offline graceful degrade:** if tile fetch fails, show "Basemap unavailable — check internet" overlay; map still pans/zooms and shows site markers.
 
 **Acceptance criteria:**
+
 - Map renders, can be panned and zoomed.
 - Attribution control visible.
 - State persists across app restarts.
@@ -220,6 +245,7 @@ Install `maplibre-gl`. Create a `<Map>` component wrapping the GL renderer. Use 
 ---
 
 ### T-010 — Site markers on the map
+
 **Status:** Open
 **Depends on:** T-005, T-009
 
@@ -228,6 +254,7 @@ Build `/map` page. Loads all non-deleted sites via `listSites()`, renders as Map
 The top bar's search input (from T-003) becomes functional here: typing searches sites and shows top 10 results in a dropdown; selecting flies the map to the site.
 
 **Acceptance criteria:**
+
 - 1,000 sites render in under 2 seconds.
 - Cluster click zooms in.
 - Popup is keyboard-accessible (focus trap, Esc to close).
@@ -236,6 +263,7 @@ The top bar's search input (from T-003) becomes functional here: typing searches
 ---
 
 ### T-011 — Distance + bearing measurement tool
+
 **Status:** Open
 **Depends on:** T-009
 
@@ -244,6 +272,7 @@ Add a measurement tool to the map. Toolbar button activates it. Click two points
 Uses `lib/geo.ts` from T-004. No external services.
 
 **Acceptance criteria:**
+
 - Distance matches `lib/geo.ts` to 4 decimal places.
 - Bearing matches reference for 5 test fixtures.
 - Esc clears measurement and exits the tool.
@@ -254,10 +283,12 @@ Uses `lib/geo.ts` from T-004. No external services.
 ## Equipment (T-012 to T-014)
 
 ### T-012 — Equipment schema + migration
+
 **Status:** Open
 **Depends on:** T-004
 
 Add `equipment_items` table:
+
 - `id` (uuid, pk)
 - `site_id` (fk → sites)
 - `parent_id` (self-fk for hierarchy, nullable)
@@ -274,6 +305,7 @@ Add indexes: `(site_id, deleted_at)`, unique `(serial)` where serial is not null
 Validation enforced at Zod boundary: `category=antenna` requires `gain_dbi`, `azimuth_deg`, and `mount_height_agl_m`.
 
 **Acceptance criteria:**
+
 - Migration applies cleanly.
 - Unique-serial test passes (creating two with same serial fails; soft-deleting one then creating another with same serial succeeds).
 - Antenna validation tested both ways (valid & invalid).
@@ -281,18 +313,21 @@ Validation enforced at Zod boundary: `category=antenna` requires `gain_dbi`, `az
 ---
 
 ### T-013 — Equipment query module
+
 **Status:** Open
 **Depends on:** T-005, T-012
 
 Create `src/features/equipment/queries.ts`. Functions: `listBySite`, `getById`, `create`, `update`, `softDelete`, `restore`, `searchBySerial`, `searchByModel`, `searchByMac`. Audit log on all mutations.
 
 **Acceptance criteria:**
+
 - Tests cover create antenna with required RF fields, create non-antenna without RF fields succeeds, antenna without required fields fails.
 - Search functions case-insensitive.
 
 ---
 
 ### T-014 — Equipment management UI
+
 **Status:** Open
 **Depends on:** T-008, T-013
 
@@ -301,6 +336,7 @@ Equipment tab on the site detail page: list as a table with category, make/model
 Inline edit and inline soft-delete on the list.
 
 **Acceptance criteria:**
+
 - Form validates antenna fields conditionally.
 - Optimistic updates with rollback on error.
 - Sortable by category, model, serial.
@@ -310,10 +346,12 @@ Inline edit and inline soft-delete on the list.
 ## Licences (T-015 to T-017)
 
 ### T-015 — Licences schema + migration
+
 **Status:** Open
 **Depends on:** T-004
 
 Add `licences` table:
+
 - `id` (uuid, pk)
 - `site_id` (fk → sites, nullable for orphan/pre-allocated licences)
 - `licence_id_external` (text, nullable — the regulator's licence number)
@@ -332,12 +370,14 @@ Add `licences` table:
 Index on `(deleted_at, expiry_date)` for the dashboard queries.
 
 **Acceptance criteria:**
+
 - Migration applies cleanly.
 - Test asserts a licence can exist without `site_id`.
 
 ---
 
 ### T-016 — Licences query module + dashboard
+
 **Status:** Open
 **Depends on:** T-005, T-015
 
@@ -346,6 +386,7 @@ Query module functions: `list`, `getById`, `create`, `update`, `softDelete`, `re
 Build `/licences` dashboard with sections: Expired (red), Expiring in 7 days, Expiring in 30 days, Expiring in 90 days. CSV export button at the top.
 
 **Acceptance criteria:**
+
 - Dashboard renders 5,000 licences in under 200ms.
 - CSV export valid in Excel and LibreOffice.
 - Expired section visually distinguished.
@@ -354,6 +395,7 @@ Build `/licences` dashboard with sections: Expired (red), Expiring in 7 days, Ex
 ---
 
 ### T-017 — In-app expiry notifications
+
 **Status:** Open
 **Depends on:** T-016
 
@@ -364,6 +406,7 @@ Add a notification badge on the licence nav item showing the count of expired-or
 Snooze: user can dismiss the banner for 24 hours via a "Remind me tomorrow" button. Dismissal stored in `meta` table.
 
 **Acceptance criteria:**
+
 - Banner appears on launch when applicable.
 - Snooze persists for 24 hours then re-appears.
 - Badge count reflects live state (updates when a licence is edited).
@@ -373,14 +416,16 @@ Snooze: user can dismiss the banner for 24 hours via a "Remind me tomorrow" butt
 ## Cross-cutting (T-018 to T-020)
 
 ### T-018 — Audit log viewer
+
 **Status:** Open
 **Depends on:** T-005, T-013, T-016
 
-The `audit_log` table is being written to from T-005 onwards. This ticket builds the *viewer*: `/settings/audit`. Lists recent entries newest-first, paginated. Filters: entity type, action, date range.
+The `audit_log` table is being written to from T-005 onwards. This ticket builds the _viewer_: `/settings/audit`. Lists recent entries newest-first, paginated. Filters: entity type, action, date range.
 
 Each entry shows: timestamp, actor (always "you" for now since single-user), entity type + id, action, before/after diff (rendered as a pretty diff for the JSON).
 
 **Acceptance criteria:**
+
 - 10,000 audit entries paginate cleanly.
 - Diff view readable for a typical Site update.
 - Audit entries are immutable — no edit / delete UI.
@@ -388,6 +433,7 @@ Each entry shows: timestamp, actor (always "you" for now since single-user), ent
 ---
 
 ### T-019 — CSV import for sites `[model: opus]`
+
 **Status:** Open
 **Depends on:** T-005, T-007
 
@@ -396,6 +442,7 @@ Build the CSV import dialog reachable from `/sites` and from the welcome screen.
 Re-import is idempotent if the user provides an `external_id` column (we store it as a meta field for now; a real `external_id` column on sites can be a follow-up).
 
 **Acceptance criteria:**
+
 - 1,000-row CSV processes in under 10 seconds.
 - Per-row errors surfaced clearly; user can fix and re-upload.
 - Successful import writes one audit entry per site created.
@@ -404,6 +451,7 @@ Re-import is idempotent if the user provides an `external_id` column (we store i
 ---
 
 ### T-020 — Backup, restore, and release pipeline `[model: opus]`
+
 **Status:** Open
 **Depends on:** T-001, T-002
 
@@ -416,12 +464,14 @@ Add a "Backup reminder" setting (off / weekly / monthly). When due, show a non-b
 
 **Part B — Release pipeline.**
 GitHub Actions workflow on tag push (`v*`):
+
 - Builds installers for Windows (.msi), macOS (.dmg, universal), Linux (.AppImage).
 - Generates SHA256 sums.
 - Creates a draft GitHub Release with all artefacts attached.
 - Code signing: configured but optional; if signing secrets are present, sign the macOS and Windows builds; otherwise produce unsigned (with a warning in the release notes).
 
 **Acceptance criteria:**
+
 - Backup → wipe DB → Restore → all data is back, byte-equivalent.
 - Backup file is a valid zip openable in any unzip tool.
 - Restore refuses to load a corrupted backup (with a clear error).
