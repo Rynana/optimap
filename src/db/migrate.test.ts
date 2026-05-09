@@ -15,7 +15,7 @@ describe("runMigrations", () => {
         "SELECT key, value, updated_at FROM meta WHERE key = 'schema_version'",
       );
       expect(rows).toHaveLength(1);
-      expect(rows[0].value).toBe("1");
+      expect(rows[0].value).toBe("2"); // 2 migrations: 0000 (meta+audit_log) + 0001 (sites)
       expect(rows[0].updated_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     } finally {
       driver.close();
@@ -49,6 +49,69 @@ describe("runMigrations", () => {
     }
   });
 
+  it("creates the sites table with the expected columns and indexes", async () => {
+    const driver = makeTestDriver();
+    try {
+      await runMigrations(driver);
+
+      const tables = await driver.select<TableRow[]>(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sites'",
+      );
+      expect(tables).toHaveLength(1);
+
+      const cols = await driver.select<Array<{ name: string }>>(
+        "SELECT name FROM pragma_table_info('sites')",
+      );
+      const colNames = cols.map((c) => c.name).sort();
+      expect(colNames).toEqual(
+        [
+          "id",
+          "name",
+          "type",
+          "status",
+          "latitude",
+          "longitude",
+          "ground_elevation_m",
+          "address",
+          "notes",
+          "created_at",
+          "updated_at",
+          "deleted_at",
+        ].sort(),
+      );
+
+      const indexes = await driver.select<TableRow[]>(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'sites'",
+      );
+      const idxNames = indexes.map((i) => i.name);
+      expect(idxNames).toContain("idx_sites_deleted_at");
+      expect(idxNames).toContain("idx_sites_lat_lng");
+    } finally {
+      driver.close();
+    }
+  });
+
+  it("sites table accepts an insert and round-trips the data", async () => {
+    const driver = makeTestDriver();
+    try {
+      await runMigrations(driver);
+      const now = "2026-05-09T00:00:00.000Z";
+      await driver.execute(
+        `INSERT INTO sites (id, name, type, status, latitude, longitude, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        ["site-001", "Test Tower", "tower", "active", -33.8688, 151.2093, now, now],
+      );
+      const rows = await driver.select<Array<{ name: string; latitude: number }>>(
+        "SELECT name, latitude FROM sites WHERE id = 'site-001'",
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].name).toBe("Test Tower");
+      expect(rows[0].latitude).toBeCloseTo(-33.8688, 4);
+    } finally {
+      driver.close();
+    }
+  });
+
   it("is idempotent on re-run", async () => {
     const driver = makeTestDriver();
     try {
@@ -59,7 +122,7 @@ describe("runMigrations", () => {
       const tracker = await driver.select<CountRow[]>(
         "SELECT COUNT(*) as count FROM __drizzle_migrations",
       );
-      expect(tracker[0].count).toBe(1);
+      expect(tracker[0].count).toBe(2); // 2 migrations: 0000 + 0001
 
       const meta = await driver.select<CountRow[]>(
         "SELECT COUNT(*) as count FROM meta WHERE key = 'schema_version'",

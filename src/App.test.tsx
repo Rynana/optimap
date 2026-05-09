@@ -56,7 +56,7 @@ describe("App", () => {
     const rows = await testDriver.select<Array<{ value: string }>>(
       "SELECT value FROM meta WHERE key = 'schema_version'",
     );
-    expect(rows[0]?.value).toBe("1");
+    expect(rows[0]?.value).toBe("2"); // 2 migrations after T-004
   });
 
   it("skips the welcome screen on subsequent launches (flag already set)", async () => {
