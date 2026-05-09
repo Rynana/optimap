@@ -167,7 +167,7 @@ Each function:
 
 ### T-006 — Sites list page
 
-**Status:** Open
+**Status:** In progress
 **Depends on:** T-005
 
 Build `/sites`. Table view with columns: name, type, status, address, last updated. Top bar: search input, status filter, type filter, "New site" button, "Import CSV" button (stub — full importer is T-019). Click a row → site detail.
