@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSqlDriver } from "../db/client";
+import { db } from "../db/client";
 import { setMetaFlag } from "../db/meta-flags";
 import { useAppContext } from "../context/app-context";
+import { loadSampleData } from "../features/sites/sample-data";
 
 export default function Welcome() {
   const navigate = useNavigate();
@@ -14,6 +16,17 @@ export default function Welcome() {
     const driver = await getSqlDriver();
     await setMetaFlag(driver, "first_launch_completed", "1");
     markFirstLaunchDone();
+  }
+
+  async function handleStartWithSample() {
+    setLoading(true);
+    try {
+      await loadSampleData(db);
+      await completeFirstLaunch();
+      navigate("/sites");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleStartEmpty() {
@@ -36,19 +49,15 @@ export default function Welcome() {
       </div>
 
       <div className="mt-10 w-full max-w-md space-y-3">
-        <div>
-          <button
-            type="button"
-            disabled
-            data-testid="start-sample-btn"
-            className="w-full cursor-not-allowed rounded-lg bg-blue-200 px-4 py-3 text-sm font-medium text-blue-400"
-          >
-            Start with sample dataset (available after T-006)
-          </button>
-          <p className="mt-1 text-center text-xs text-slate-400">
-            Lights up once the Sites module is built.
-          </p>
-        </div>
+        <button
+          type="button"
+          onClick={handleStartWithSample}
+          disabled={loading}
+          data-testid="start-sample-btn"
+          className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Start with a sample dataset
+        </button>
 
         <button
           type="button"

@@ -94,12 +94,26 @@ describe("App", () => {
     expect(rows[0]?.value).toBe("1");
   });
 
-  it("Start with sample button is disabled (sites module not yet built)", async () => {
+  it("Start with sample: loads sample data and navigates to Sites", async () => {
     const { default: App } = await import("./App");
     render(<App />);
 
     await waitFor(() => screen.getByTestId("start-sample-btn"));
-    expect(screen.getByTestId("start-sample-btn")).toBeDisabled();
+    expect(screen.getByTestId("start-sample-btn")).not.toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("start-sample-btn"));
+
+    await waitFor(
+      () => {
+        expect(screen.getByRole("heading", { name: /^sites$/i })).toBeInTheDocument();
+      },
+      { timeout: 5000 },
+    );
+
+    const rows = await testDriver.select<Array<{ value: string }>>(
+      "SELECT value FROM meta WHERE key = 'first_launch_completed'",
+    );
+    expect(rows[0]?.value).toBe("1");
   });
 
   it("Import from CSV shows a coming-soon stub", async () => {

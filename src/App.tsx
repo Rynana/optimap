@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getSqlDriver } from "./db/client";
 import { runMigrations } from "./db/migrate";
 import { getMetaFlag } from "./db/meta-flags";
@@ -7,10 +8,21 @@ import { AppContext } from "./context/app-context";
 import AppShell from "./components/layout/AppShell";
 import Dashboard from "./routes/Dashboard";
 import Sites from "./routes/Sites";
+import SiteDetail from "./routes/SiteDetail";
+import SiteNew from "./routes/SiteNew";
 import MapView from "./routes/MapView";
 import Licences from "./routes/Licences";
 import Settings from "./routes/Settings";
 import Welcome from "./routes/Welcome";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      staleTime: 30_000,
+    },
+  },
+});
 
 type InitState =
   | { status: "initializing" }
@@ -70,31 +82,35 @@ export default function App() {
   const { firstLaunch } = initState;
 
   return (
-    <AppContext.Provider
-      value={{
-        firstLaunch,
-        markFirstLaunchDone: () => setInitState({ status: "ready", firstLaunch: false }),
-        resetFirstLaunch: () => setInitState({ status: "ready", firstLaunch: true }),
-      }}
-    >
-      <HashRouter>
-        <Routes>
-          {/* Full-screen route — no AppShell */}
-          <Route path="/welcome" element={<Welcome />} />
+    <QueryClientProvider client={queryClient}>
+      <AppContext.Provider
+        value={{
+          firstLaunch,
+          markFirstLaunchDone: () => setInitState({ status: "ready", firstLaunch: false }),
+          resetFirstLaunch: () => setInitState({ status: "ready", firstLaunch: true }),
+        }}
+      >
+        <HashRouter>
+          <Routes>
+            {/* Full-screen route — no AppShell */}
+            <Route path="/welcome" element={<Welcome />} />
 
-          {/* Shell routes */}
-          <Route path="/" element={<AppShell />}>
-            <Route
-              index
-              element={firstLaunch ? <Navigate to="/welcome" replace /> : <Dashboard />}
-            />
-            <Route path="sites" element={<Sites />} />
-            <Route path="map" element={<MapView />} />
-            <Route path="licences" element={<Licences />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
-        </Routes>
-      </HashRouter>
-    </AppContext.Provider>
+            {/* Shell routes */}
+            <Route path="/" element={<AppShell />}>
+              <Route
+                index
+                element={firstLaunch ? <Navigate to="/welcome" replace /> : <Dashboard />}
+              />
+              <Route path="sites" element={<Sites />} />
+              <Route path="sites/new" element={<SiteNew />} />
+              <Route path="sites/:id" element={<SiteDetail />} />
+              <Route path="map" element={<MapView />} />
+              <Route path="licences" element={<Licences />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
+          </Routes>
+        </HashRouter>
+      </AppContext.Provider>
+    </QueryClientProvider>
   );
 }

@@ -7,6 +7,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    exclude: [".claude/**", "node_modules/**"],
     coverage: {
       provider: "v8",
       include: ["src/db/**", "src/features/*/queries.ts", "src/lib/**"],
