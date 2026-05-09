@@ -98,7 +98,7 @@ Add a "first-launch completed" flag in the `meta` table so the welcome screen on
 
 ### T-004 — Sites schema + migration
 
-**Status:** Open
+**Status:** In progress
 **Depends on:** T-002
 
 Add the `sites` table to `src/db/schema.ts`. Columns:
