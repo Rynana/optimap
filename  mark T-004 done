@@ -1,0 +1,900 @@
+[1mdiff --git a/docs/TICKETS-001-to-020.md b/docs/TICKETS-001-to-020.md[m
+[1mindex 251aaa0..c86cf3a 100644[m
+[1m--- a/docs/TICKETS-001-to-020.md[m
+[1m+++ b/docs/TICKETS-001-to-020.md[m
+[36m@@ -98,7 +98,7 @@[m [mAdd a "first-launch completed" flag in the `meta` table so the welcome screen on[m
+ [m
+ ### T-004 — Sites schema + migration[m
+ [m
+[31m-**Status:** In progress[m
+[32m+[m[32m**Status:** Done (56b6a66)[m
+ **Depends on:** T-002[m
+ [m
+ Add the `sites` table to `src/db/schema.ts`. Columns:[m
+[1mdiff --git a/package.json b/package.json[m
+[1mindex a3312eb..e449fa9 100644[m
+[1m--- a/package.json[m
+[1m+++ b/package.json[m
+[36m@@ -26,7 +26,8 @@[m
+     "lucide-react": "^1.14.0",[m
+     "react": "^19.1.0",[m
+     "react-dom": "^19.1.0",[m
+[31m-    "react-router-dom": "^6.30.3"[m
+[32m+[m[32m    "react-router-dom": "^6.30.3",[m
+[32m+[m[32m    "zod": "^4.4.3"[m
+   },[m
+   "devDependencies": {[m
+     "@eslint/js": "^9.27.0",[m
+[1mdiff --git a/pnpm-lock.yaml b/pnpm-lock.yaml[m
+[1mindex 82227c2..9e61779 100644[m
+[1m--- a/pnpm-lock.yaml[m
+[1m+++ b/pnpm-lock.yaml[m
+[36m@@ -32,6 +32,9 @@[m [mimporters:[m
+       react-router-dom:[m
+         specifier: ^6.30.3[m
+         version: 6.30.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)[m
+[32m+[m[32m      zod:[m
+[32m+[m[32m        specifier: ^4.4.3[m
+[32m+[m[32m        version: 4.4.3[m
+     devDependencies:[m
+       '@eslint/js':[m
+         specifier: ^9.27.0[m
+[36m@@ -2703,6 +2706,9 @@[m [mpackages:[m
+     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}[m
+     engines: {node: '>=10'}[m
+ [m
+[32m+[m[32m  zod@4.4.3:[m
+[32m+[m[32m    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}[m
+[32m+[m
+ snapshots:[m
+ [m
+   '@adobe/css-tools@4.4.4': {}[m
+[36m@@ -4975,3 +4981,5 @@[m [msnapshots:[m
+   yaml@2.8.4: {}[m
+ [m
+   yocto-queue@0.1.0: {}[m
+[32m+[m
+[32m+[m[32m  zod@4.4.3: {}[m
+[1mdiff --git a/src/App.test.tsx b/src/App.test.tsx[m
+[1mindex 41f8e5d..3d43ad2 100644[m
+[1m--- a/src/App.test.tsx[m
+[1m+++ b/src/App.test.tsx[m
+[36m@@ -56,7 +56,7 @@[m [mdescribe("App", () => {[m
+     const rows = await testDriver.select<Array<{ value: string }>>([m
+       "SELECT value FROM meta WHERE key = 'schema_version'",[m
+     );[m
+[31m-    expect(rows[0]?.value).toBe("1");[m
+[32m+[m[32m    expect(rows[0]?.value).toBe("2"); // 2 migrations after T-004[m
+   });[m
+ [m
+   it("skips the welcome screen on subsequent launches (flag already set)", async () => {[m
+[1mdiff --git a/src/db/migrate.test.ts b/src/db/migrate.test.ts[m
+[1mindex 3bd435d..7f9fe34 100644[m
+[1m--- a/src/db/migrate.test.ts[m
+[1m+++ b/src/db/migrate.test.ts[m
+[36m@@ -15,7 +15,7 @@[m [mdescribe("runMigrations", () => {[m
+         "SELECT key, value, updated_at FROM meta WHERE key = 'schema_version'",[m
+       );[m
+       expect(rows).toHaveLength(1);[m
+[31m-      expect(rows[0].value).toBe("1");[m
+[32m+[m[32m      expect(rows[0].value).toBe("2"); // 2 migrations: 0000 (meta+audit_log) + 0001 (sites)[m
+       expect(rows[0].updated_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);[m
+     } finally {[m
+       driver.close();[m
+[36m@@ -49,6 +49,69 @@[m [mdescribe("runMigrations", () => {[m
+     }[m
+   });[m
+ [m
+[32m+[m[32m  it("creates the sites table with the expected columns and indexes", async () => {[m
+[32m+[m[32m    const driver = makeTestDriver();[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      await runMigrations(driver);[m
+[32m+[m
+[32m+[m[32m      const tables = await driver.select<TableRow[]>([m
+[32m+[m[32m        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sites'",[m
+[32m+[m[32m      );[m
+[32m+[m[32m      expect(tables).toHaveLength(1);[m
+[32m+[m
+[32m+[m[32m      const cols = await driver.select<Array<{ name: string }>>([m
+[32m+[m[32m        "SELECT name FROM pragma_table_info('sites')",[m
+[32m+[m[32m      );[m
+[32m+[m[32m      const colNames = cols.map((c) => c.name).sort();[m
+[32m+[m[32m      expect(colNames).toEqual([m
+[32m+[m[32m        [[m
+[32m+[m[32m          "id",[m
+[32m+[m[32m          "name",[m
+[32m+[m[32m          "type",[m
+[32m+[m[32m          "status",[m
+[32m+[m[32m          "latitude",[m
+[32m+[m[32m          "longitude",[m
+[32m+[m[32m          "ground_elevation_m",[m
+[32m+[m[32m          "address",[m
+[32m+[m[32m          "notes",[m
+[32m+[m[32m          "created_at",[m
+[32m+[m[32m          "updated_at",[m
+[32m+[m[32m          "deleted_at",[m
+[32m+[m[32m        ].sort(),[m
+[32m+[m[32m      );[m
+[32m+[m
+[32m+[m[32m      const indexes = await driver.select<TableRow[]>([m
+[32m+[m[32m        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'sites'",[m
+[32m+[m[32m      );[m
+[32m+[m[32m      const idxNames = indexes.map((i) => i.name);[m
+[32m+[m[32m      expect(idxNames).toContain("idx_sites_deleted_at");[m
+[32m+[m[32m      expect(idxNames).toContain("idx_sites_lat_lng");[m
+[32m+[m[32m    } finally {[m
+[32m+[m[32m      driver.close();[m
+[32m+[m[32m    }[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("sites table accepts an insert and round-trips the data", async () => {[m
+[32m+[m[32m    const driver = makeTestDriver();[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      await runMigrations(driver);[m
+[32m+[m[32m      const now = "2026-05-09T00:00:00.000Z";[m
+[32m+[m[32m      await driver.execute([m
+[32m+[m[32m        `INSERT INTO sites (id, name, type, status, latitude, longitude, created_at, updated_at)[m
+[32m+[m[32m         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,[m
+[32m+[m[32m        ["site-001", "Test Tower", "tower", "active", -33.8688, 151.2093, now, now],[m
+[32m+[m[32m      );[m
+[32m+[m[32m      const rows = await driver.select<Array<{ name: string; latitude: number }>>([m
+[32m+[m[32m        "SELECT name, latitude FROM sites WHERE id = 'site-001'",[m
+[32m+[m[32m      );[m
+[32m+[m[32m      expect(rows).toHaveLength(1);[m
+[32m+[m[32m      expect(rows[0].name).toBe("Test Tower");[m
+[32m+[m[32m      expect(rows[0].latitude).toBeCloseTo(-33.8688, 4);[m
+[32m+[m[32m    } finally {[m
+[32m+[m[32m      driver.close();[m
+[32m+[m[32m    }[m
+[32m+[m[32m  });[m
+[32m+[m
+   it("is idempotent on re-run", async () => {[m
+     const driver = makeTestDriver();[m
+     try {[m
+[36m@@ -59,7 +122,7 @@[m [mdescribe("runMigrations", () => {[m
+       const tracker = await driver.select<CountRow[]>([m
+         "SELECT COUNT(*) as count FROM __drizzle_migrations",[m
+       );[m
+[31m-      expect(tracker[0].count).toBe(1);[m
+[32m+[m[32m      expect(tracker[0].count).toBe(2); // 2 migrations: 0000 + 0001[m
+ [m
+       const meta = await driver.select<CountRow[]>([m
+         "SELECT COUNT(*) as count FROM meta WHERE key = 'schema_version'",[m
+[1mdiff --git a/src/db/migrations/0001_amused_mauler.sql b/src/db/migrations/0001_amused_mauler.sql[m
+[1mnew file mode 100644[m
+[1mindex 0000000..37577c6[m
+[1m--- /dev/null[m
+[1m+++ b/src/db/migrations/0001_amused_mauler.sql[m
+[36m@@ -0,0 +1,17 @@[m
+[32m+[m[32mCREATE TABLE `sites` ([m
+[32m+[m	[32m`id` text PRIMARY KEY NOT NULL,[m
+[32m+[m	[32m`name` text NOT NULL,[m
+[32m+[m	[32m`type` text NOT NULL,[m
+[32m+[m	[32m`status` text NOT NULL,[m
+[32m+[m	[32m`latitude` real NOT NULL,[m
+[32m+[m	[32m`longitude` real NOT NULL,[m
+[32m+[m	[32m`ground_elevation_m` real,[m
+[32m+[m	[32m`address` text,[m
+[32m+[m	[32m`notes` text,[m
+[32m+[m	[32m`created_at` text NOT NULL,[m
+[32m+[m	[32m`updated_at` text NOT NULL,[m
+[32m+[m	[32m`deleted_at` text[m
+[32m+[m[32m);[m
+[32m+[m[32m--> statement-breakpoint[m
+[32m+[m[32mCREATE INDEX `idx_sites_deleted_at` ON `sites` (`deleted_at`);--> statement-breakpoint[m
+[32m+[m[32mCREATE INDEX `idx_sites_lat_lng` ON `sites` (`latitude`,`longitude`);[m
+\ No newline at end of file[m
+[1mdiff --git a/src/db/migrations/meta/0001_snapshot.json b/src/db/migrations/meta/0001_snapshot.json[m
+[1mnew file mode 100644[m
+[1mindex 0000000..6ace87f[m
+[1m--- /dev/null[m
+[1m+++ b/src/db/migrations/meta/0001_snapshot.json[m
+[36m@@ -0,0 +1,234 @@[m
+[32m+[m[32m{[m
+[32m+[m[32m  "version": "6",[m
+[32m+[m[32m  "dialect": "sqlite",[m
+[32m+[m[32m  "id": "4eb4d2e8-d1ec-4be4-993e-0452ba888448",[m
+[32m+[m[32m  "prevId": "0d50a479-e38c-4e8e-be18-3ec67335fc10",[m
+[32m+[m[32m  "tables": {[m
+[32m+[m[32m    "audit_log": {[m
+[32m+[m[32m      "name": "audit_log",[m
+[32m+[m[32m      "columns": {[m
+[32m+[m[32m        "id": {[m
+[32m+[m[32m          "name": "id",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": true,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "at": {[m
+[32m+[m[32m          "name": "at",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "actor": {[m
+[32m+[m[32m          "name": "actor",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false,[m
+[32m+[m[32m          "default": "'user'"[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "entity_type": {[m
+[32m+[m[32m          "name": "entity_type",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "entity_id": {[m
+[32m+[m[32m          "name": "entity_id",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "action": {[m
+[32m+[m[32m          "name": "action",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "before": {[m
+[32m+[m[32m          "name": "before",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": false,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "after": {[m
+[32m+[m[32m          "name": "after",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": false,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        }[m
+[32m+[m[32m      },[m
+[32m+[m[32m      "indexes": {[m
+[32m+[m[32m        "idx_audit_log_at": {[m
+[32m+[m[32m          "name": "idx_audit_log_at",[m
+[32m+[m[32m          "columns": [[m
+[32m+[m[32m            "at"[m
+[32m+[m[32m          ],[m
+[32m+[m[32m          "isUnique": false[m
+[32m+[m[32m        }[m
+[32m+[m[32m      },[m
+[32m+[m[32m      "foreignKeys": {},[m
+[32m+[m[32m      "compositePrimaryKeys": {},[m
+[32m+[m[32m      "uniqueConstraints": {},[m
+[32m+[m[32m      "checkConstraints": {}[m
+[32m+[m[32m    },[m
+[32m+[m[32m    "meta": {[m
+[32m+[m[32m      "name": "meta",[m
+[32m+[m[32m      "columns": {[m
+[32m+[m[32m        "key": {[m
+[32m+[m[32m          "name": "key",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": true,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "value": {[m
+[32m+[m[32m          "name": "value",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "updated_at": {[m
+[32m+[m[32m          "name": "updated_at",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        }[m
+[32m+[m[32m      },[m
+[32m+[m[32m      "indexes": {},[m
+[32m+[m[32m      "foreignKeys": {},[m
+[32m+[m[32m      "compositePrimaryKeys": {},[m
+[32m+[m[32m      "uniqueConstraints": {},[m
+[32m+[m[32m      "checkConstraints": {}[m
+[32m+[m[32m    },[m
+[32m+[m[32m    "sites": {[m
+[32m+[m[32m      "name": "sites",[m
+[32m+[m[32m      "columns": {[m
+[32m+[m[32m        "id": {[m
+[32m+[m[32m          "name": "id",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": true,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "name": {[m
+[32m+[m[32m          "name": "name",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "type": {[m
+[32m+[m[32m          "name": "type",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "status": {[m
+[32m+[m[32m          "name": "status",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "latitude": {[m
+[32m+[m[32m          "name": "latitude",[m
+[32m+[m[32m          "type": "real",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "longitude": {[m
+[32m+[m[32m          "name": "longitude",[m
+[32m+[m[32m          "type": "real",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "ground_elevation_m": {[m
+[32m+[m[32m          "name": "ground_elevation_m",[m
+[32m+[m[32m          "type": "real",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": false,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "address": {[m
+[32m+[m[32m          "name": "address",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": false,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "notes": {[m
+[32m+[m[32m          "name": "notes",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": false,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "created_at": {[m
+[32m+[m[32m          "name": "created_at",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "updated_at": {[m
+[32m+[m[32m          "name": "updated_at",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": true,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "deleted_at": {[m
+[32m+[m[32m          "name": "deleted_at",[m
+[32m+[m[32m          "type": "text",[m
+[32m+[m[32m          "primaryKey": false,[m
+[32m+[m[32m          "notNull": false,[m
+[32m+[m[32m          "autoincrement": false[m
+[32m+[m[32m        }[m
+[32m+[m[32m      },[m
+[32m+[m[32m      "indexes": {[m
+[32m+[m[32m        "idx_sites_deleted_at": {[m
+[32m+[m[32m          "name": "idx_sites_deleted_at",[m
+[32m+[m[32m          "columns": [[m
+[32m+[m[32m            "deleted_at"[m
+[32m+[m[32m          ],[m
+[32m+[m[32m          "isUnique": false[m
+[32m+[m[32m        },[m
+[32m+[m[32m        "idx_sites_lat_lng": {[m
+[32m+[m[32m          "name": "idx_sites_lat_lng",[m
+[32m+[m[32m          "columns": [[m
+[32m+[m[32m            "latitude",[m
+[32m+[m[32m            "longitude"[m
+[32m+[m[32m          ],[m
+[32m+[m[32m          "isUnique": false[m
+[32m+[m[32m        }[m
+[32m+[m[32m      },[m
+[32m+[m[32m      "foreignKeys": {},[m
+[32m+[m[32m      "compositePrimaryKeys": {},[m
+[32m+[m[32m      "uniqueConstraints": {},[m
+[32m+[m[32m      "checkConstraints": {}[m
+[32m+[m[32m    }[m
+[32m+[m[32m  },[m
+[32m+[m[32m  "views": {},[m
+[32m+[m[32m  "enums": {},[m
+[32m+[m[32m  "_meta": {[m
+[32m+[m[32m    "schemas": {},[m
+[32m+[m[32m    "tables": {},[m
+[32m+[m[32m    "columns": {}[m
+[32m+[m[32m  },[m
+[32m+[m[32m  "internal": {[m
+[32m+[m[32m    "indexes": {}[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
+[1mdiff --git a/src/db/migrations/meta/_journal.json b/src/db/migrations/meta/_journal.json[m
+[1mindex c2164e9..8042ee0 100644[m
+[1m--- a/src/db/migrations/meta/_journal.json[m
+[1m+++ b/src/db/migrations/meta/_journal.json[m
+[36m@@ -8,6 +8,13 @@[m
+       "when": 1778223511663,[m
+       "tag": "0000_keen_cyclops",[m
+       "breakpoints": true[m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "idx": 1,[m
+[32m+[m[32m      "version": "6",[m
+[32m+[m[32m      "when": 1778291255994,[m
+[32m+[m[32m      "tag": "0001_amused_mauler",[m
+[32m+[m[32m      "breakpoints": true[m
+     }[m
+   ][m
+[31m-}[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
+[1mdiff --git a/src/db/schema.ts b/src/db/schema.ts[m
+[1mindex 8d71cc0..d111384 100644[m
+[1m--- a/src/db/schema.ts[m
+[1m+++ b/src/db/schema.ts[m
+[36m@@ -1,4 +1,4 @@[m
+[31m-import { sqliteTable, text, index } from "drizzle-orm/sqlite-core";[m
+[32m+[m[32mimport { sqliteTable, text, real, index } from "drizzle-orm/sqlite-core";[m
+ [m
+ export const meta = sqliteTable("meta", {[m
+   key: text("key").primaryKey(),[m
+[36m@@ -23,7 +23,31 @@[m [mexport const auditLog = sqliteTable([m
+   }),[m
+ );[m
+ [m
+[32m+[m[32mexport const sites = sqliteTable([m
+[32m+[m[32m  "sites",[m
+[32m+[m[32m  {[m
+[32m+[m[32m    id: text("id").primaryKey(),[m
+[32m+[m[32m    name: text("name").notNull(),[m
+[32m+[m[32m    type: text("type").notNull(),[m
+[32m+[m[32m    status: text("status").notNull(),[m
+[32m+[m[32m    latitude: real("latitude").notNull(),[m
+[32m+[m[32m    longitude: real("longitude").notNull(),[m
+[32m+[m[32m    groundElevationM: real("ground_elevation_m"),[m
+[32m+[m[32m    address: text("address"),[m
+[32m+[m[32m    notes: text("notes"),[m
+[32m+[m[32m    createdAt: text("created_at").notNull(),[m
+[32m+[m[32m    updatedAt: text("updated_at").notNull(),[m
+[32m+[m[32m    deletedAt: text("deleted_at"),[m
+[32m+[m[32m  },[m
+[32m+[m[32m  (table) => ({[m
+[32m+[m[32m    deletedAtIdx: index("idx_sites_deleted_at").on(table.deletedAt),[m
+[32m+[m[32m    latLngIdx: index("idx_sites_lat_lng").on(table.latitude, table.longitude),[m
+[32m+[m[32m  }),[m
+[32m+[m[32m);[m
+[32m+[m
+ export type Meta = typeof meta.$inferSelect;[m
+ export type NewMeta = typeof meta.$inferInsert;[m
+ export type AuditLog = typeof auditLog.$inferSelect;[m
+ export type NewAuditLog = typeof auditLog.$inferInsert;[m
+[32m+[m[32mexport type Site = typeof sites.$inferSelect;[m
+[32m+[m[32mexport type NewSite = typeof sites.$inferInsert;[m
+[1mdiff --git a/src/features/sites/schema.test.ts b/src/features/sites/schema.test.ts[m
+[1mnew file mode 100644[m
+[1mindex 0000000..5001590[m
+[1m--- /dev/null[m
+[1m+++ b/src/features/sites/schema.test.ts[m
+[36m@@ -0,0 +1,99 @@[m
+[32m+[m[32mimport { describe, it, expect } from "vitest";[m
+[32m+[m[32mimport { CreateSiteSchema, UpdateSiteSchema, SITE_TYPES, SITE_STATUSES } from "./schema";[m
+[32m+[m
+[32m+[m[32mconst VALID_SITE = {[m
+[32m+[m[32m  name: "Sydney CBD Tower",[m
+[32m+[m[32m  type: "tower" as const,[m
+[32m+[m[32m  status: "active" as const,[m
+[32m+[m[32m  latitude: -33.8688,[m
+[32m+[m[32m  longitude: 151.2093,[m
+[32m+[m[32m};[m
+[32m+[m
+[32m+[m[32mdescribe("CreateSiteSchema", () => {[m
+[32m+[m[32m  it("accepts a minimal valid site", () => {[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse(VALID_SITE)).not.toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("accepts all optional fields", () => {[m
+[32m+[m[32m    expect(() =>[m
+[32m+[m[32m      CreateSiteSchema.parse({[m
+[32m+[m[32m        ...VALID_SITE,[m
+[32m+[m[32m        id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",[m
+[32m+[m[32m        groundElevationM: 42.5,[m
+[32m+[m[32m        address: "1 George St, Sydney NSW 2000",[m
+[32m+[m[32m        notes: "Main CBD rooftop site",[m
+[32m+[m[32m      }),[m
+[32m+[m[32m    ).not.toThrow();[m
+[32m+[m
+[32m+[m[32m    expect(() =>[m
+[32m+[m[32m      CreateSiteSchema.parse({ ...VALID_SITE, groundElevationM: null, address: null, notes: null }),[m
+[32m+[m[32m    ).not.toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("rejects an invalid type value", () => {[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, type: "skyscraper" })).toThrow();[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, type: "" })).toThrow();[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, type: "TOWER" })).toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("rejects an invalid status value", () => {[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, status: "unknown" })).toThrow();[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, status: "Active" })).toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("rejects latitude out of range", () => {[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, latitude: 91 })).toThrow();[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, latitude: -91 })).toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("rejects longitude out of range", () => {[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, longitude: 181 })).toThrow();[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, longitude: -181 })).toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("rejects empty name", () => {[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, name: "" })).toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("rejects an invalid UUID for id", () => {[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, id: "not-a-uuid" })).toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("accepts all defined type values", () => {[m
+[32m+[m[32m    for (const type of SITE_TYPES) {[m
+[32m+[m[32m      expect(() => CreateSiteSchema.parse({ ...VALID_SITE, type })).not.toThrow();[m
+[32m+[m[32m    }[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("accepts all defined status values", () => {[m
+[32m+[m[32m    for (const status of SITE_STATUSES) {[m
+[32m+[m[32m      expect(() => CreateSiteSchema.parse({ ...VALID_SITE, status })).not.toThrow();[m
+[32m+[m[32m    }[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("accepts boundary latitude and longitude values", () => {[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, latitude: 90, longitude: 180 })).not.toThrow();[m
+[32m+[m[32m    expect(() => CreateSiteSchema.parse({ ...VALID_SITE, latitude: -90, longitude: -180 })).not.toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m[32m});[m
+[32m+[m
+[32m+[m[32mdescribe("UpdateSiteSchema", () => {[m
+[32m+[m[32m  it("accepts an empty object (all fields optional)", () => {[m
+[32m+[m[32m    expect(() => UpdateSiteSchema.parse({})).not.toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("accepts a partial update", () => {[m
+[32m+[m[32m    expect(() => UpdateSiteSchema.parse({ status: "maintenance" })).not.toThrow();[m
+[32m+[m[32m    expect(() => UpdateSiteSchema.parse({ name: "Renamed Tower", notes: "Updated" })).not.toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("still enforces enum values when provided", () => {[m
+[32m+[m[32m    expect(() => UpdateSiteSchema.parse({ type: "invalid_type" })).toThrow();[m
+[32m+[m[32m    expect(() => UpdateSiteSchema.parse({ status: "broken" })).toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("still enforces coordinate ranges when provided", () => {[m
+[32m+[m[32m    expect(() => UpdateSiteSchema.parse({ latitude: 95 })).toThrow();[m
+[32m+[m[32m    expect(() => UpdateSiteSchema.parse({ longitude: -200 })).toThrow();[m
+[32m+[m[32m  });[m
+[32m+[m[32m});[m
+[1mdiff --git a/src/features/sites/schema.ts b/src/features/sites/schema.ts[m
+[1mnew file mode 100644[m
+[1mindex 0000000..e2fdba2[m
+[1m--- /dev/null[m
+[1m+++ b/src/features/sites/schema.ts[m
+[36m@@ -0,0 +1,44 @@[m
+[32m+[m[32mimport { z } from "zod";[m
+[32m+[m
+[32m+[m[32mexport const SITE_TYPES = [[m
+[32m+[m[32m  "tower",[m
+[32m+[m[32m  "rooftop",[m
+[32m+[m[32m  "hut",[m
+[32m+[m[32m  "mpop",[m
+[32m+[m[32m  "exchange",[m
+[32m+[m[32m  "customer_premise",[m
+[32m+[m[32m  "other",[m
+[32m+[m[32m] as const;[m
+[32m+[m
+[32m+[m[32mexport const SITE_STATUSES = [[m
+[32m+[m[32m  "planned",[m
+[32m+[m[32m  "active",[m
+[32m+[m[32m  "decommissioned",[m
+[32m+[m[32m  "maintenance",[m
+[32m+[m[32m  "fault",[m
+[32m+[m[32m] as const;[m
+[32m+[m
+[32m+[m[32mexport const SiteTypeSchema = z.enum(SITE_TYPES);[m
+[32m+[m[32mexport const SiteStatusSchema = z.enum(SITE_STATUSES);[m
+[32m+[m
+[32m+[m[32mexport type SiteType = z.infer<typeof SiteTypeSchema>;[m
+[32m+[m[32mexport type SiteStatus = z.infer<typeof SiteStatusSchema>;[m
+[32m+[m
+[32m+[m[32m// Fields provided by the caller — timestamps are managed by the query layer.[m
+[32m+[m[32mexport const CreateSiteSchema = z.object({[m
+[32m+[m[32m  id: z.string().uuid().optional(),[m
+[32m+[m[32m  name: z.string().min(1, "Name is required"),[m
+[32m+[m[32m  type: SiteTypeSchema,[m
+[32m+[m[32m  status: SiteStatusSchema,[m
+[32m+[m[32m  latitude: z.number().min(-90).max(90),[m
+[32m+[m[32m  longitude: z.number().min(-180).max(180),[m
+[32m+[m[32m  groundElevationM: z.number().nullable().optional(),[m
+[32m+[m[32m  address: z.string().nullable().optional(),[m
+[32m+[m[32m  notes: z.string().nullable().optional(),[m
+[32m+[m[32m});[m
+[32m+[m
+[32m+[m[32m// All business fields are optional for partial updates.[m
+[32m+[m[32mexport const UpdateSiteSchema = CreateSiteSchema.omit({ id: true }).partial();[m
+[32m+[m
+[32m+[m[32mexport type CreateSiteInput = z.infer<typeof CreateSiteSchema>;[m
+[32m+[m[32mexport type UpdateSiteInput = z.infer<typeof UpdateSiteSchema>;[m
+[1mdiff --git a/src/lib/geo.test.ts b/src/lib/geo.test.ts[m
+[1mnew file mode 100644[m
+[1mindex 0000000..0303f51[m
+[1m--- /dev/null[m
+[1m+++ b/src/lib/geo.test.ts[m
+[36m@@ -0,0 +1,186 @@[m
+[32m+[m[32mimport { describe, it, expect } from "vitest";[m
+[32m+[m[32mimport { haversineKm, bearingDeg, boundingBox } from "./geo";[m
+[32m+[m
+[32m+[m[32m// R = 6371 km (IUGG mean radius used throughout).[m
+[32m+[m[32mconst R = 6371;[m
+[32m+[m
+[32m+[m[32m/** Assert actual is within 0.1 % of ref (per the T-004 AC). */[m
+[32m+[m[32mfunction within01pct(actual: number, ref: number): void {[m
+[32m+[m[32m  if (ref === 0) {[m
+[32m+[m[32m    expect(actual).toBe(0);[m
+[32m+[m[32m    return;[m
+[32m+[m[32m  }[m
+[32m+[m[32m  expect(Math.abs(actual - ref) / ref).toBeLessThanOrEqual(0.001);[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m// ---------------------------------------------------------------------------[m
+[32m+[m[32m// haversineKm — 9 fixtures[m
+[32m+[m[32m// ---------------------------------------------------------------------------[m
+[32m+[m
+[32m+[m[32mdescribe("haversineKm", () => {[m
+[32m+[m[32m  it("same point returns 0", () => {[m
+[32m+[m[32m    within01pct(haversineKm({ lat: 0, lng: 0 }, { lat: 0, lng: 0 }), 0);[m
+[32m+[m[32m    within01pct(haversineKm({ lat: -33.87, lng: 151.21 }, { lat: -33.87, lng: 151.21 }), 0);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("equator quarter (0,0)→(0,90) = R·π/2", () => {[m
+[32m+[m[32m    // Analytical: Δlng=90°, a=sin²(45°)=0.5, c=π/2[m
+[32m+[m[32m    const expected = R * (Math.PI / 2); // 10 007.543 km[m
+[32m+[m[32m    within01pct(haversineKm({ lat: 0, lng: 0 }, { lat: 0, lng: 90 }), expected);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("from equator to north pole = R·π/2", () => {[m
+[32m+[m[32m    const expected = R * (Math.PI / 2);[m
+[32m+[m[32m    within01pct(haversineKm({ lat: 0, lng: 0 }, { lat: 90, lng: 0 }), expected);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("from equator to south pole = R·π/2", () => {[m
+[32m+[m[32m    const expected = R * (Math.PI / 2);[m
+[32m+[m[32m    within01pct(haversineKm({ lat: 0, lng: 0 }, { lat: -90, lng: 0 }), expected);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("north pole to south pole = R·π (half-circumference)", () => {[m
+[32m+[m[32m    const expected = R * Math.PI; // 20 015.087 km[m
+[32m+[m[32m    within01pct(haversineKm({ lat: 90, lng: 0 }, { lat: -90, lng: 0 }), expected);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("antimeridian crossing: (0,179)→(0,-179) equals 2° of longitude at equator", () => {[m
+[32m+[m[32m    // Shortest path crosses 180°: only 2° apart.[m
+[32m+[m[32m    // 2° at equator: 2 × R × asin(sin(π/180)) ≈ 2 × R × π/180[m
+[32m+[m[32m    const expected = 2 * R * Math.asin(Math.sin(Math.PI / 180)); // ~222.4 km[m
+[32m+[m[32m    within01pct(haversineKm({ lat: 0, lng: 179 }, { lat: 0, lng: -179 }), expected);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("southern hemisphere: Sydney → Melbourne ~713 km", () => {[m
+[32m+[m[32m    // Reference computed with the Haversine formula (R=6371 km).[m
+[32m+[m[32m    const sydney = { lat: -33.8688, lng: 151.2093 };[m
+[32m+[m[32m    const melbourne = { lat: -37.8136, lng: 144.9631 };[m
+[32m+[m[32m    const d = haversineKm(sydney, melbourne);[m
+[32m+[m[32m    expect(d).toBeGreaterThan(700);[m
+[32m+[m[32m    expect(d).toBeLessThan(730);[m
+[32m+[m[32m    // Check against precomputed reference (Haversine, R=6371): 713.84 km[m
+[32m+[m[32m    within01pct(d, 713.84);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("northern hemisphere: London → Paris ~344 km", () => {[m
+[32m+[m[32m    const london = { lat: 51.5074, lng: -0.1278 };[m
+[32m+[m[32m    const paris = { lat: 48.8566, lng: 2.3522 };[m
+[32m+[m[32m    const d = haversineKm(london, paris);[m
+[32m+[m[32m    expect(d).toBeGreaterThan(330);[m
+[32m+[m[32m    expect(d).toBeLessThan(360);[m
+[32m+[m[32m    // Reference (Haversine, R=6371): 343.86 km[m
+[32m+[m[32m    within01pct(d, 343.86);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("short distance (0.1° apart) ≈ R·0.1·π/180", () => {[m
+[32m+[m[32m    // Analytical for a purely latitudinal step: d = R × θ_rad[m
+[32m+[m[32m    const expected = R * (0.1 * Math.PI) / 180; // ~11.119 km[m
+[32m+[m[32m    within01pct(haversineKm({ lat: 0, lng: 0 }, { lat: 0.1, lng: 0 }), expected);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("symmetry: d(a,b) === d(b,a)", () => {[m
+[32m+[m[32m    const a = { lat: -33.8688, lng: 151.2093 };[m
+[32m+[m[32m    const b = { lat: 51.5074, lng: -0.1278 };[m
+[32m+[m[32m    expect(haversineKm(a, b)).toBeCloseTo(haversineKm(b, a), 6);[m
+[32m+[m[32m  });[m
+[32m+[m[32m});[m
+[32m+[m
+[32m+[m[32m// ---------------------------------------------------------------------------[m
+[32m+[m[32m// bearingDeg — 5 cardinal + 1 real-world fixture[m
+[32m+[m[32m// ---------------------------------------------------------------------------[m
+[32m+[m
+[32m+[m[32mdescribe("bearingDeg", () => {[m
+[32m+[m[32m  it("due north (lat increases, same lng) → 0°", () => {[m
+[32m+[m[32m    expect(bearingDeg({ lat: 0, lng: 0 }, { lat: 1, lng: 0 })).toBeCloseTo(0, 1);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("due east (lng increases, same lat) → 90°", () => {[m
+[32m+[m[32m    expect(bearingDeg({ lat: 0, lng: 0 }, { lat: 0, lng: 1 })).toBeCloseTo(90, 1);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("due south (lat decreases, same lng) → 180°", () => {[m
+[32m+[m[32m    expect(bearingDeg({ lat: 0, lng: 0 }, { lat: -1, lng: 0 })).toBeCloseTo(180, 1);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("due west (lng decreases, same lat) → 270°", () => {[m
+[32m+[m[32m    expect(bearingDeg({ lat: 0, lng: 0 }, { lat: 0, lng: -1 })).toBeCloseTo(270, 1);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("Sydney → Melbourne is south-west (bearing ~225°–235°)", () => {[m
+[32m+[m[32m    const bearing = bearingDeg([m
+[32m+[m[32m      { lat: -33.8688, lng: 151.2093 },[m
+[32m+[m[32m      { lat: -37.8136, lng: 144.9631 },[m
+[32m+[m[32m    );[m
+[32m+[m[32m    expect(bearing).toBeGreaterThan(220);[m
+[32m+[m[32m    expect(bearing).toBeLessThan(240);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("bearing is in [0, 360)", () => {[m
+[32m+[m[32m    const cases: Array<[{ lat: number; lng: number }, { lat: number; lng: number }]> = [[m
+[32m+[m[32m      [{ lat: 0, lng: 0 }, { lat: 1, lng: 0 }],[m
+[32m+[m[32m      [{ lat: 0, lng: 0 }, { lat: 0, lng: 1 }],[m
+[32m+[m[32m      [{ lat: 0, lng: 0 }, { lat: -1, lng: 0 }],[m
+[32m+[m[32m      [{ lat: 0, lng: 0 }, { lat: 0, lng: -1 }],[m
+[32m+[m[32m      [{ lat: -33.8688, lng: 151.2093 }, { lat: 51.5074, lng: -0.1278 }],[m
+[32m+[m[32m    ];[m
+[32m+[m[32m    for (const [a, b] of cases) {[m
+[32m+[m[32m      const b_ = bearingDeg(a, b);[m
+[32m+[m[32m      expect(b_).toBeGreaterThanOrEqual(0);[m
+[32m+[m[32m      expect(b_).toBeLessThan(360);[m
+[32m+[m[32m    }[m
+[32m+[m[32m  });[m
+[32m+[m[32m});[m
+[32m+[m
+[32m+[m[32m// ---------------------------------------------------------------------------[m
+[32m+[m[32m// boundingBox[m
+[32m+[m[32m// ---------------------------------------------------------------------------[m
+[32m+[m
+[32m+[m[32mdescribe("boundingBox", () => {[m
+[32m+[m[32m  it("100 km radius around Sydney produces a sensible box", () => {[m
+[32m+[m[32m    const sydney = { lat: -33.8688, lng: 151.2093 };[m
+[32m+[m[32m    const box = boundingBox(sydney, 100);[m
+[32m+[m
+[32m+[m[32m    // ~0.9° per 100 km of latitude[m
+[32m+[m[32m    expect(box.minLat).toBeCloseTo(sydney.lat - 0.8993, 1);[m
+[32m+[m[32m    expect(box.maxLat).toBeCloseTo(sydney.lat + 0.8993, 1);[m
+[32m+[m
+[32m+[m[32m    // Longitude span is wider because cos(lat) < 1[m
+[32m+[m[32m    expect(box.minLng).toBeLessThan(sydney.lng);[m
+[32m+[m[32m    expect(box.maxLng).toBeGreaterThan(sydney.lng);[m
+[32m+[m
+[32m+[m[32m    // All corners are within 100 km of the centre (i.e. it is conservative)[m
+[32m+[m[32m    expect(haversineKm(sydney, { lat: box.minLat, lng: sydney.lng })).toBeCloseTo(100, 0);[m
+[32m+[m[32m    expect(haversineKm(sydney, { lat: box.maxLat, lng: sydney.lng })).toBeCloseTo(100, 0);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("near-pole point clamps longitude span to ±180°", () => {[m
+[32m+[m[32m    const nearPole = { lat: 89.9, lng: 0 };[m
+[32m+[m[32m    const box = boundingBox(nearPole, 500);[m
+[32m+[m[32m    expect(box.minLng).toBeGreaterThanOrEqual(-180);[m
+[32m+[m[32m    expect(box.maxLng).toBeLessThanOrEqual(180);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("latitude is clamped to [-90, 90]", () => {[m
+[32m+[m[32m    const nearPole = { lat: 89, lng: 0 };[m
+[32m+[m[32m    const box = boundingBox(nearPole, 200);[m
+[32m+[m[32m    expect(box.maxLat).toBeLessThanOrEqual(90);[m
+[32m+[m[32m  });[m
+[32m+[m
+[32m+[m[32m  it("any point inside the radius is within the bounding box", () => {[m
+[32m+[m[32m    const centre = { lat: -33.8688, lng: 151.2093 };[m
+[32m+[m[32m    const radiusKm = 50;[m
+[32m+[m[32m    const box = boundingBox(centre, radiusKm);[m
+[32m+[m
+[32m+[m[32m    // Points just inside the radius on cardinal axes must be within the box.[m
+[32m+[m[32m    const north = { lat: centre.lat + 0.44, lng: centre.lng }; // ~49 km north[m
+[32m+[m[32m    const east = { lat: centre.lat, lng: centre.lng + 0.53 }; // ~49 km east[m
+[32m+[m
+[32m+[m[32m    expect(north.lat).toBeGreaterThan(box.minLat);[m
+[32m+[m[32m    expect(north.lat).toBeLessThan(box.maxLat);[m
+[32m+[m[32m    expect(east.lng).toBeGreaterThan(box.minLng);[m
+[32m+[m[32m    expect(east.lng).toBeLessThan(box.maxLng);[m
+[32m+[m
+[32m+[m[32m    expect(haversineKm(centre, north)).toBeLessThan(radiusKm);[m
+[32m+[m[32m    expect(haversineKm(centre, east)).toBeLessThan(radiusKm);[m
+[32m+[m[32m  });[m
+[32m+[m[32m});[m
+[1mdiff --git a/src/lib/geo.ts b/src/lib/geo.ts[m
+[1mnew file mode 100644[m
+[1mindex 0000000..213abdc[m
+[1m--- /dev/null[m
+[1m+++ b/src/lib/geo.ts[m
+[36m@@ -0,0 +1,58 @@[m
+[32m+[m[32mexport type LatLng = { lat: number; lng: number };[m
+[32m+[m[32mexport type BBox = { minLat: number; maxLat: number; minLng: number; maxLng: number };[m
+[32m+[m
+[32m+[m[32mconst R_KM = 6371; // Earth mean radius, km (IUGG)[m
+[32m+[m
+[32m+[m[32mfunction toRad(deg: number): number {[m
+[32m+[m[32m  return (deg * Math.PI) / 180;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/**[m
+[32m+[m[32m * Great-circle distance between two points using the Haversine formula.[m
+[32m+[m[32m * Accurate for all distances including near-zero and antipodal.[m
+[32m+[m[32m */[m
+[32m+[m[32mexport function haversineKm(a: LatLng, b: LatLng): number {[m
+[32m+[m[32m  const dLat = toRad(b.lat - a.lat);[m
+[32m+[m[32m  const dLng = toRad(b.lng - a.lng);[m
+[32m+[m[32m  const sinLat = Math.sin(dLat / 2);[m
+[32m+[m[32m  const sinLng = Math.sin(dLng / 2);[m
+[32m+[m[32m  const h =[m
+[32m+[m[32m    sinLat * sinLat +[m
+[32m+[m[32m    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * sinLng * sinLng;[m
+[32m+[m[32m  return 2 * R_KM * Math.asin(Math.sqrt(h));[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/**[m
+[32m+[m[32m * Initial bearing from a to b, in degrees [0, 360).[m
+[32m+[m[32m * 0° = north, 90° = east, 180° = south, 270° = west.[m
+[32m+[m[32m */[m
+[32m+[m[32mexport function bearingDeg(a: LatLng, b: LatLng): number {[m
+[32m+[m[32m  const lat1 = toRad(a.lat);[m
+[32m+[m[32m  const lat2 = toRad(b.lat);[m
+[32m+[m[32m  const dLng = toRad(b.lng - a.lng);[m
+[32m+[m[32m  const y = Math.sin(dLng) * Math.cos(lat2);[m
+[32m+[m[32m  const x =[m
+[32m+[m[32m    Math.cos(lat1) * Math.sin(lat2) -[m
+[32m+[m[32m    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);[m
+[32m+[m[32m  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/**[m
+[32m+[m[32m * Conservative axis-aligned bounding box for all points within radiusKm of centre.[m
+[32m+[m[32m * Near-polar points are clamped to ±90° lat / ±180° lng rather than wrapping.[m
+[32m+[m[32m * Use haversineKm for exact filtering after the bbox pre-filter.[m
+[32m+[m[32m */[m
+[32m+[m[32mexport function boundingBox(centre: LatLng, radiusKm: number): BBox {[m
+[32m+[m[32m  const deltaLat = (radiusKm / R_KM) * (180 / Math.PI);[m
+[32m+[m[32m  const cosLat = Math.cos(toRad(centre.lat));[m
+[32m+[m[32m  // Guard against division by zero at the poles.[m
+[32m+[m[32m  const deltaLng =[m
+[32m+[m[32m    cosLat < 1e-10 ? 180 : (radiusKm / (R_KM * cosLat)) * (180 / Math.PI);[m
+[32m+[m
+[32m+[m[32m  return {[m
+[32m+[m[32m    minLat: Math.max(-90, centre.lat - deltaLat),[m
+[32m+[m[32m    maxLat: Math.min(90, centre.lat + deltaLat),[m
+[32m+[m[32m    minLng: Math.max(-180, centre.lng - deltaLng),[m
+[32m+[m[32m    maxLng: Math.min(180, centre.lng + deltaLng),[m
+[32m+[m[32m  };[m
+[32m+[m[32m}[m
