@@ -134,7 +134,7 @@ Add a `lib/geo.ts` module with: `haversineKm(a, b)`, `bearingDeg(a, b)`, `boundi
 
 ### T-005 — Sites query module
 
-**Status:** Open
+**Status:** Done
 **Depends on:** T-004
 
 Create `src/features/sites/queries.ts` with typed functions:
