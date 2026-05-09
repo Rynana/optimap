@@ -61,7 +61,7 @@ Add `pnpm db:generate` (drizzle-kit generates SQL migrations from the TS schema)
 
 ### T-003 — App shell: routing, layout, first-launch experience
 
-**Status:** Open
+**Status:** In progress
 **Depends on:** T-001
 
 Set up React Router (or TanStack Router — pick and document) with these routes:
